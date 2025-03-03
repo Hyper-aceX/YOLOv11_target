@@ -1,68 +1,87 @@
-import json
 import os
-from PIL import Image
+from pathlib import Path
+from your_module import your_conversion_function
 
-def convert_json_to_yolo(json_dir, image_dir, output_dir):
+def process_images_and_labels(images_folder, labels_folder, output_folder, 
+                             image_extension='.jpg', label_extension='.txt'):
     """
-    Converts JSON annotation files to YOLOv11 TXT format.
-
+    Process images and labels:
+    - For images with corresponding labels: convert label and save to output folder
+    - For images without labels: create empty txt files in the output folder
+    
     Args:
-        json_dir: Directory containing the JSON annotation files.
-        image_dir: Directory containing the images.
-        output_dir: Directory to save the YOLO TXT files.
+        images_folder (str): Path to the folder containing images
+        labels_folder (str): Path to the folder containing labels
+        output_folder (str): Path to the output folder (folder A)
+        image_extension (str): Extension of image files including the dot
+        label_extension (str): Extension of label files including the dot
     """
+    # Create output folder if it doesn't exist
+    os.makedirs(output_folder, exist_ok=True)
+    
+    # Process all images
+    image_count = 0
+    with_label_count = 0
+    without_label_count = 0
+    
+    # Get list of all image files
+    image_files = [f for f in os.listdir(images_folder) if f.endswith(image_extension)]
+    total_images = len(image_files)
+    
+    print(f"Found {total_images} images to process...")
+    
+    for i, image_file in enumerate(image_files, 1):
+        image_count += 1
+        image_base_name = os.path.splitext(image_file)[0]
+        label_file_path = os.path.join(labels_folder, image_base_name + label_extension)
+        output_label_path = os.path.join(output_folder, image_base_name + label_extension)
+        
+        # Progress update every 100 images
+        if i % 100 == 0 or i == total_images:
+            print(f"Processing image {i}/{total_images} ({i/total_images*100:.1f}%)")
+        
+        # Check if corresponding label exists
+        if os.path.exists(label_file_path):
+            with_label_count += 1
+            # Read label content
+            with open(label_file_path, 'r') as f:
+                label_content = f.read()
+            
+            try:
+                # Apply custom conversion
+                converted_content = your_conversion_function(label_content)
+                
+                # Write converted content to output folder
+                with open(output_label_path, 'w') as f:
+                    f.write(converted_content)
+            except Exception as e:
+                print(f"Error processing label for image {image_file}: {e}")
 
-    if not os.path.exists(output_dir):
-        os.makedirs(output_dir)
+        else:
+            without_label_count += 1
+            # Create empty label file
+            with open(output_label_path, 'w') as f:
+                pass  # Create empty file
 
-    for json_file in os.listdir(json_dir):
-        if not json_file.endswith(".json"):
-            continue
+    print(f"\nSummary:")
+    print(f"Total images processed: {image_count}")
+    print(f"Images with labels: {with_label_count}")
+    print(f"Images without labels: {without_label_count}")
 
-        json_path = os.path.join(json_dir, json_file)
-        with open(json_path, "r") as f:
-            data = json.load(f)
-
-        # Extract image filename and dimensions
-        image_filename = data["image_filename"]  # Adapt this to your JSON structure
-        image_path = os.path.join(image_dir, image_filename)
-        try:
-            image = Image.open(image_path)
-            image_width, image_height = image.size
-        except FileNotFoundError:
-            print(f"Image not found: {image_path}")
-            continue
-
-        # Create YOLO TXT file
-        txt_filename = os.path.splitext(json_file)[0] + ".txt"
-        txt_path = os.path.join(output_dir, txt_filename)
-
-        with open(txt_path, "w") as txt_file:
-            for annotation in data["annotations"]:  # Adapt this to your JSON structure
-                class_id = annotation["class_id"]  # Adapt this to your JSON structure
-                bbox = annotation["bbox"]  # Adapt this to your JSON structure (x, y, width, height)
-                keypoints = annotation["keypoints"]  # Adapt this to your JSON structure (list of x, y coordinates)
-
-                # Normalize bounding box coordinates
-                x_center = (bbox[0] + bbox[2] / 2) / image_width
-                y_center = (bbox[1] + bbox[3] / 2) / image_height
-                width = bbox[2] / image_width
-                height = bbox[3] / image_height
-
-                # Normalize keypoint coordinates
-                normalized_keypoints = []
-                for x, y in keypoints:
-                    normalized_keypoints.append(x / image_width)
-                    normalized_keypoints.append(y / image_height)
-
-                # Write to TXT file
-                line = f"{class_id} {x_center} {y_center} {width} {height} " + " ".join(map(str, normalized_keypoints))
-                txt_file.write(line + "\n")
-
-        print(f"Converted {json_file} to {txt_filename}")
-
-# Example usage:
-json_dir = "path/to/your/json/annotations"  # Replace with the path to your JSON annotations
-image_dir = "path/to/your/images"  # Replace with the path to your images
-output_dir = "path/to/your/yolo/labels"  # Replace with the desired output directory for YOLO TXT files
-convert_json_to_yolo(json_dir, image_dir, output_dir)
+if __name__ == "__main__":
+    # Replace these with your actual folder paths
+    IMAGES_FOLDER = "path/to/images_folder"
+    LABELS_FOLDER = "path/to/labels_folder"
+    OUTPUT_FOLDER = "path/to/folder_A"
+    
+    # Replace these with your actual file extensions
+    IMAGE_EXTENSION = ".jpg"  # or ".png", etc.
+    LABEL_EXTENSION = ".txt"  # or ".json", etc.
+    
+    process_images_and_labels(
+        IMAGES_FOLDER, 
+        LABELS_FOLDER, 
+        OUTPUT_FOLDER,
+        IMAGE_EXTENSION,
+        LABEL_EXTENSION
+    )
